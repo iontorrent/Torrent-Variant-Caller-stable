@@ -47,7 +47,13 @@ public class ReferenceSequence {
     public ReferenceSequence(File input, boolean oneAtATime)
         throws Exception
     {
-        this.referenceSequenceFile = new IndexedFastaSequenceFile(input);
+        this(new IndexedFastaSequenceFile(input),oneAtATime);
+    }
+
+    public ReferenceSequence(IndexedFastaSequenceFile referenceSequenceFile,boolean oneAtATime)
+        throws Exception
+    {
+        this.referenceSequenceFile = referenceSequenceFile;
         if(!this.referenceSequenceFile.isIndexed()) {
             throw new Exception("Reference sequence file was not indexed.");
         }
@@ -71,6 +77,11 @@ public class ReferenceSequence {
     {
         this(input, true);
     }
+    public ReferenceSequence(IndexedFastaSequenceFile referenceSequenceFile)
+        throws Exception
+    {
+        this(referenceSequenceFile,true);
+    }
 
     /**
      * Moves the reference sequence to a new contig.
@@ -93,8 +104,10 @@ public class ReferenceSequence {
         }
         else {
             // add them up to the current
-            for(i=this.referenceSequences.size(); i <= referenceIndex; i++) {
-                this.referenceSequences.add(this.referenceSequenceFile.getSequence(this.referenceDictionary.getSequence(i).getSequenceName()));
+            synchronized (this) {
+                for(i=this.referenceSequences.size(); i <= referenceIndex; i++) {
+                    this.referenceSequences.add(this.referenceSequenceFile.getSequence(this.referenceDictionary.getSequence(i).getSequenceName()));
+                }
             }
         }
     }

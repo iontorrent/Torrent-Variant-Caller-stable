@@ -411,6 +411,20 @@ public class SamToFlowgramAlignUtil {
         }
         return r;
     }
+    
+    /**
+     * @param record the SAM record
+     * @return start index in the flow signal as specified by the ZF tag, or -1 if not present
+     */
+    public static int getFlowSignalsStart(SAMRecord record) {
+        Object attribute = record.getAttribute("ZF");
+        if(null == attribute) {
+            return -1;
+        }
+        else {
+            return (Integer)attribute;
+        }
+    }
 
     /**
      * @param flowSignal the 100 scaled flow signal
