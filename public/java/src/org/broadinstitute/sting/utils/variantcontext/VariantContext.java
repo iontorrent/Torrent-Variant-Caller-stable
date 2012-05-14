@@ -539,6 +539,18 @@ public class VariantContext implements Feature { // to enable tribble intergrati
         return commonInfo.getAttribute(key, defaultValue);
     }
 
+    //Allows adding attributes after class is built.
+    //ToDo:  Only good idea when adding attributes that aren't used in the model.  Also, can cause problems if done
+    //ToDo:  after the filtering step, and you'd like to filter on this attribute.
+    public void putAttribute(String key, Object value) {
+        putAttribute(key, value, false);
+    }
+
+    public void putAttribute(String key, Object value, boolean allowOverwrites) {
+        commonInfo.putAttribute(key, value, allowOverwrites);
+    }
+    //ToDo:  Adding attributes later means one may want to add filters later as well.
+
     public String getAttributeAsString(String key, String defaultValue)   { return commonInfo.getAttributeAsString(key, defaultValue); }
     public int getAttributeAsInt(String key, int defaultValue)            { return commonInfo.getAttributeAsInt(key, defaultValue); }
     public double getAttributeAsDouble(String key, double  defaultValue)  { return commonInfo.getAttributeAsDouble(key, defaultValue); }

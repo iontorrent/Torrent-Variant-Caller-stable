@@ -149,8 +149,9 @@ final class CommonInfo {
 
         if ( attributes == NO_ATTRIBUTES ) // immutable -> mutable
             attributes = new HashMap<String, Object>();
-
+        attributes = new HashMap<String, Object>(attributes);
         attributes.put(key, value);
+        attributes = Collections.unmodifiableMap(attributes);
     }
 
     public void removeAttribute(String key) {
