@@ -697,7 +697,7 @@ public class LocusIteratorByState extends LocusIterator {
                     while (numReads + newReads.size() > targetCoverage && readPruned) {
                         readPruned = false;
                         for (int alignmentStart = updatedCounts.length - 1; numReads + newReads.size() > targetCoverage && alignmentStart >= 0; alignmentStart--) {
-                            if (updatedCounts[alignmentStart] > 1) {
+                            if (updatedCounts[alignmentStart] > 500) {
                                 updatedCounts[alignmentStart]--;
                                 numReads--;
                                 readPruned = true;
