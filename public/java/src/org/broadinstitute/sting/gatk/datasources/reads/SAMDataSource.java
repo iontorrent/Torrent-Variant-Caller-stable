@@ -65,7 +65,8 @@ import java.util.concurrent.Callable;
  */
 public class SAMDataSource {
     final private static GATKSamRecordFactory factory = new GATKSamRecordFactory();
-
+    public GATKSamRecordFactory getFactory() { return factory; }
+    
     /** Backing support for reads. */
     protected final ReadProperties readProperties;
 
@@ -938,7 +939,7 @@ public class SAMDataSource {
             } catch ( SAMFormatException e ) {
                 throw new UserException.MalformedBAM(readerID.samFile, e.getMessage());
             }
-            reader.setSAMRecordFactory(factory);
+            reader.setSAMRecordFactory(SAMDataSource.this.getFactory());
             reader.enableFileSource(true);
             reader.setValidationStringency(validationStringency);
             return this;
