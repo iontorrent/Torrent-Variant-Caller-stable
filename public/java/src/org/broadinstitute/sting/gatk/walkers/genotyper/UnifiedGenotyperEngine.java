@@ -64,7 +64,7 @@ public class UnifiedGenotyperEngine {
     protected static final double SUM_GL_THRESH_NOCALL = -0.001; // if sum(gl) is bigger than this threshold, we treat GL's as non-informative and will force a no-call.
 
     // the unified argument collection
-    private final UnifiedArgumentCollection UAC;
+    protected final UnifiedArgumentCollection UAC;
     public UnifiedArgumentCollection getUAC() { return UAC; }
 
     // the annotation engine
@@ -212,7 +212,7 @@ public class UnifiedGenotyperEngine {
     // ---------------------------------------------------------------------------------------------------------
 
     // private method called by both UnifiedGenotyper and UGCalcLikelihoods entry points into the engine
-    private VariantContext calculateLikelihoods(RefMetaDataTracker tracker, ReferenceContext refContext, Map<String, AlignmentContext> stratifiedContexts, AlignmentContextUtils.ReadOrientation type, List<Allele> alternateAllelesToUse, boolean useBAQedPileup, final GenotypeLikelihoodsCalculationModel.Model model) {
+    protected VariantContext calculateLikelihoods(RefMetaDataTracker tracker, ReferenceContext refContext, Map<String, AlignmentContext> stratifiedContexts, AlignmentContextUtils.ReadOrientation type, List<Allele> alternateAllelesToUse, boolean useBAQedPileup, final GenotypeLikelihoodsCalculationModel.Model model) {
 
         // initialize the data for this thread if that hasn't been done yet
         if ( glcm.get() == null ) {
@@ -222,7 +222,7 @@ public class UnifiedGenotyperEngine {
         return glcm.get().get(model).getLikelihoods(tracker, refContext, stratifiedContexts, type, getGenotypePriors(model), alternateAllelesToUse, useBAQedPileup && BAQEnabledOnCMDLine, genomeLocParser);
     }
 
-    private VariantCallContext generateEmptyContext(RefMetaDataTracker tracker, ReferenceContext ref, Map<String, AlignmentContext> stratifiedContexts, AlignmentContext rawContext) {
+    protected VariantCallContext generateEmptyContext(RefMetaDataTracker tracker, ReferenceContext ref, Map<String, AlignmentContext> stratifiedContexts, AlignmentContext rawContext) {
         VariantContext vc;
         if ( UAC.GenotypingMode == GenotypeLikelihoodsCalculationModel.GENOTYPING_MODE.GENOTYPE_GIVEN_ALLELES ) {
             VariantContext vcInput = UnifiedGenotyperEngine.getVCFromAllelesRod(tracker, ref, rawContext.getLocation(), false, logger, UAC.alleles);
@@ -439,7 +439,7 @@ public class UnifiedGenotyperEngine {
         return MathUtils.normalizeFromLog10(normalizedPosteriors);
     }
 
-    private Map<String, AlignmentContext> getFilteredAndStratifiedContexts(UnifiedArgumentCollection UAC, ReferenceContext refContext, AlignmentContext rawContext, final GenotypeLikelihoodsCalculationModel.Model model) {
+    protected Map<String, AlignmentContext> getFilteredAndStratifiedContexts(UnifiedArgumentCollection UAC, ReferenceContext refContext, AlignmentContext rawContext, final GenotypeLikelihoodsCalculationModel.Model model) {
 
         Map<String, AlignmentContext> stratifiedContexts = null;
 
@@ -597,8 +597,8 @@ public class UnifiedGenotyperEngine {
     }
 
     // decide whether we are currently processing SNPs, indels, or neither
-    private GenotypeLikelihoodsCalculationModel.Model getCurrentGLModel(final RefMetaDataTracker tracker, final ReferenceContext refContext,
-                                                                        final AlignmentContext rawContext ) {
+    protected GenotypeLikelihoodsCalculationModel.Model getCurrentGLModel(final RefMetaDataTracker tracker, final ReferenceContext refContext,
+                                                                          final AlignmentContext rawContext) {
         if (rawContext.hasExtendedEventPileup() ) {
             // todo - remove this code
             if ((UAC.GLmodel == GenotypeLikelihoodsCalculationModel.Model.BOTH || UAC.GLmodel == GenotypeLikelihoodsCalculationModel.Model.INDEL) &&
