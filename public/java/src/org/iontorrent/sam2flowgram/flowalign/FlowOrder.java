@@ -123,7 +123,6 @@ public class FlowOrder
         // key sequence
         this.keySequence = keySequence.getBytes();
         SamToFlowgramAlignUtil.ntToInt(this.keySequence);
-        //this.createJumpTables();
     }
 
     /**

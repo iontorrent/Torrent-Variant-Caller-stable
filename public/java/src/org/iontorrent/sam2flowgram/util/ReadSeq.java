@@ -143,12 +143,10 @@ public class ReadSeq {
      * @param flowOrder the integer flow order.
      * @param softClipBases the soft-clipped bases before the first base, null if none exist.
      * @param readBase the first sequenced readBase.
-     * @param the value of the SAM Record optional ZF tag, -1 if not present
      * @return the flow index.
      */
     private int updateFlowInformationHelper(byte[] flowOrder, byte[] keySequence, int[] flowSignals, 
-            int hardClipBasesLength, byte[] softClipBases, byte readBase, int ZF)
-        throws Exception
+            int hardClipBasesLength, byte[] softClipBases, byte readBase)
     {
         int i, j, l, k;
         int lastBaseCall = 0;
@@ -160,55 +158,41 @@ public class ReadSeq {
         // l - flow sequence index 
         j = k = l = 0;
 
-        if(ZF < 0) {
-            // Go through the key sequence
-            if(null != keySequence) {
-                i = 0;
-                while(i<keySequence.length) {
-                    while(keySequence[i] != flowOrder[j]) {
-                        j = (j + 1) % flowOrder.length;
-                        l++;
-                    }
-                    k = 1;
+        // Go through the key sequence
+        if(null != keySequence) {
+            i = 0;
+            while(i<keySequence.length) {
+                while(keySequence[i] != flowOrder[j]) {
+                    j = (j + 1) % flowOrder.length;
+                    l++;
+                }
+                k = 1;
+                i++;
+                while(i < keySequence.length && keySequence[i] == flowOrder[j]) {
                     i++;
-                    while(i < keySequence.length && keySequence[i] == flowOrder[j]) {
-                        i++;
-                        k++;
-                    }
-                    lastBaseCall = k;
+                    k++;
                 }
-            }
-            // Go through the hard clipped bases
-            if(0 < hardClipBasesLength) {
-                i = hardClipBasesLength;
-                while(0 < i) {
-                    k = SamToFlowgramAlignUtil.getBaseCallFromFlowSignal(flowSignals[l]); // TODO: this assumes that the base calls correspond to the implied base calls from the flow signals
-                    if(0 <= i - k) {
-                        j = (j + 1) % flowOrder.length;
-                        l++;
-                    }
-                    else { // mix between the last hard clip base and the first template base
-                        lastBaseCall = k;
-                    }
-                    i -= k;
-                }
-            }
-        }
-        else { // ZF must be present to handle barcode sequences that may have errors
-            l = ZF;
-            j = ZF % flowOrder.length;
-            lastBaseCall = 0; // TODO: this should be properly set...
-            lastBaseCall = SamToFlowgramAlignUtil.getBaseCallFromFlowSignal(flowSignals[j]); 
-            // subtract template contribution
-            i = j;
-            while(0 < lastBaseCall && readBase == flowOrder[j]) {
-                i = (i + 1) % flowOrder.length;
-                lastBaseCall--;
+                lastBaseCall = k;
             }
         }
 
-        // Go through the soft-clipped bases
-        if(null != softClipBases) { 
+        // Go through the hard clipped bases
+        if(0 < hardClipBasesLength) {
+            i = hardClipBasesLength;
+            while(0 < i) {
+                k = SamToFlowgramAlignUtil.getBaseCallFromFlowSignal(flowSignals[l]); // TODO: this assumes that the base calls correspond to the implied base calls from the flow signals
+                if(0 <= i - k) {
+                    j = (j + 1) % flowOrder.length;
+                    l++;
+                }
+                else { // mix between the last hard clip base and the first template base
+                    lastBaseCall = k;
+                }
+                i -= k;
+            }
+        }
+        
+        if(null != softClipBases) { // Go through the soft-clipped bases
             for(i=0;i<softClipBases.length;i++) {
                 while(softClipBases[i] != flowOrder[j]) {
                     j = (j + 1) % flowOrder.length;
@@ -239,10 +223,9 @@ public class ReadSeq {
      * (sequencing order).  This will also consider the key seuqence
      * @param strand the original strand of the alignment.
      * @param flowOrder the flow order 
-     * @param the value of the SAM Record optional ZF tag, -1 if not present
      * @return the flow index.
      */
-    public int[] updateFlowInformation(boolean strand, FlowOrder flowOrder, int[] flowSignals, int ZF)
+    public int[] updateFlowInformation(boolean strand, FlowOrder flowOrder, int[] flowSignals)
         throws Exception
     {
         byte[] softClipBases = null;
@@ -250,8 +233,6 @@ public class ReadSeq {
         byte readBase;
         int i;
         int[] newFlowSignals = null;
-        int offset = 0;
-
 
         if(this.flowOrderIndexStart < 0) { // update
             // cycle through the key sequence
@@ -279,10 +260,7 @@ public class ReadSeq {
                 }
                 readBase = this.readBytes[0];
             }
-
-            // get the start flow index
-            this.flowOrderIndexStart = updateFlowInformationHelper(flowOrder.flowOrder, flowOrder.keySequence, flowSignals, hardClipBasesLength, softClipBases, readBase, ZF);
-
+            this.flowOrderIndexStart = updateFlowInformationHelper(flowOrder.flowOrder, flowOrder.keySequence, flowSignals, hardClipBasesLength, softClipBases, readBase);
             // update the flow signals
             newFlowSignals = new int[flowSignals.length - this.flowOrderIndexStart];
             for(i=0;i<flowSignals.length - this.flowOrderIndexStart;i++) {

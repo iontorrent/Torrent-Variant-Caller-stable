@@ -129,9 +129,6 @@ public class FlowSeq {
                 }
                 nextI++;
             }
-            if(this.flow.length <= this.length) {
-                throw new Exception("Not enough flow signals!");
-            }
             this.flow[this.length] = l * 100;
             this.length++;
             k = (k+1) % flowOrder.length;

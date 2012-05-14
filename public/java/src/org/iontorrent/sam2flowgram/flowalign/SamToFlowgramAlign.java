@@ -47,8 +47,6 @@ public class SamToFlowgramAlign extends CommandLineProgram {
         public boolean VALIDATE_ALIGNMENTS = false;
     @Option(doc="prints program version to stdout", optional=true)
         private boolean printVersion = false;
-    @Option(doc="pretty print the alignments", optional=true)
-        private boolean PRETTY_PRINT = false;
     
     // Variables to track the run time of the program.
     private long startTime;
@@ -342,7 +340,7 @@ public class SamToFlowgramAlign extends CommandLineProgram {
                     // output
                     //System.out.println("" + rec.record.getReadName().toString() + "\t" + rec.alignment.getScore());
                       System.out.print( rec.getSAMString() );
-                      System.out.println(rec.alignment.getAlignmentString(this.PRETTY_PRINT));
+                      System.out.println(rec.alignment.getAlignmentString());
                       System.out.println(rec.positionStart+","+rec.positionEnd+","+rec.alignment.getScore());
                     //rec.alignment.print(System.out, Integer.MAX_VALUE);
 

@@ -135,16 +135,6 @@ public class FlowgramAlignment
     public int tseqEnd;
 
     /**
-     * The zero-based index of flowOrder/qseq/tseq/aln where a variant of interest starts
-     */
-    public int variantStart;
-
-    /**
-     * The zero-based index of flowOrder/qseq/tseq/aln where a variant of interest ends
-     */
-    public int variantEnd;
-
-    /**
      * The tseq length, for this.reverseCompliment().
      */
     public int tseqLength;
@@ -385,12 +375,11 @@ public class FlowgramAlignment
                     int s = ((flowQseq.flow[i-1] < flowTseq.flow[j-1]) ? (flowTseq.flow[j-1]-flowQseq.flow[i-1]) : (flowQseq.flow[i-1]-flowTseq.flow[j-1]));
                     // NB: do not penalize it full on the first or last flow
                     if(i == 1 || i == flowQseq.length) {
-                        s = SamToFlowgramAlignUtil.getFlowSignalFromBaseCall(getBC(flowQseq.flow[i - 1]));
+                        s = SamToFlowgramAlignUtil.getFlowSignalFromBaseCall(SamToFlowgramAlignUtil.getBaseCallFromFlowSignal(flowQseq.flow[i - 1]));
                         s = (flowQseq.flow[i-1] < s) ? (s - flowQseq.flow[i-1]) : (flowQseq.flow[i-1] - s);
                     }
-                    // NB: choose del first, then match, then ins
                     if(dp[i-1][j-1].insScore <= dp[i-1][j-1].matchScore) {
-                        if(dp[i-1][j-1].delScore < dp[i-1][j-1].matchScore) {
+                        if(dp[i-1][j-1].delScore <= dp[i-1][j-1].matchScore) {
                             dp[i][j].matchScore = dp[i-1][j-1].matchScore - s;
                             dp[i][j].matchFrom = FROM_M;
                         }
@@ -400,7 +389,7 @@ public class FlowgramAlignment
                         }
                     }
                     else {
-                        if(dp[i-1][j-1].delScore < dp[i-1][j-1].insScore) {
+                        if(dp[i-1][j-1].delScore <= dp[i-1][j-1].insScore) {
                             dp[i][j].matchScore = dp[i-1][j-1].insScore - s;
                             dp[i][j].matchFrom = FROM_I;
                         }
@@ -504,7 +493,7 @@ public class FlowgramAlignment
         // Calculate tseqEnd
         this.tseqEnd = 0;
         for(j=0;j<bestJ;j++) {
-            this.tseqEnd += getBC(flowTseq.flow[j]);
+            this.tseqEnd += SamToFlowgramAlignUtil.getBaseCallFromFlowSignal(flowTseq.flow[j]);
             //System.err.println(SamToFlowgramAlignUtil.DNA[tseqFlowOrder.flowOrder[j]] + " " + flowTseq.flow[j] + " " + this.tseqEnd);
         }
         this.tseqEnd--; 
@@ -595,7 +584,7 @@ public class FlowgramAlignment
         // Calculate tseqStart
         this.tseqStart = 0;
         for(i=0;i<j;i++) {
-            this.tseqStart += getBC(flowTseq.flow[i]);
+            this.tseqStart += SamToFlowgramAlignUtil.getBaseCallFromFlowSignal(flowTseq.flow[i]);
         }
         
         // reverse the arrays tseq, qseq, aln, flowOrder
@@ -604,14 +593,14 @@ public class FlowgramAlignment
         // TODO: are these needed?
         this.nonEmptyFlowFirst = 0;
         for(i=0;i<this.length;i++) {
-            if(0 < getBC(this.qseq[i])) {
+            if(0 < SamToFlowgramAlignUtil.getBaseCallFromFlowSignal(this.qseq[i])) {
                 this.nonEmptyFlowFirst = i;
                 break;
             }
         }
         this.nonEmptyFlowLast = 0;
         for(i=this.length-1;0<=i;i--) {
-            if(0 < getBC(this.qseq[i])) {
+            if(0 < SamToFlowgramAlignUtil.getBaseCallFromFlowSignal(this.qseq[i])) {
                 this.nonEmptyFlowLast = i;
                 break;
             }
@@ -621,33 +610,6 @@ public class FlowgramAlignment
         //this.print(System.err);
     }
 
-    /**
-     *  Makes a new object from an existing one.
-     *  
-     *  @param modelAlign the alignment where the new one will be modeled after.
-     *                    This allows for making a subsequence of the full alignment.
-     *  @param fullyClone the new alignment will be a clone of the old one.  [Not implemented yet.]                    
-     */
-    public FlowgramAlignment(FlowgramAlignment modelAlign, boolean fullyClone) throws Exception {
-        if(fullyClone) {
-            this.length = modelAlign.length;
-            this.score = modelAlign.score;
-            this.flowOrder = modelAlign.flowOrder.clone();
-            this.qseq = modelAlign.qseq.clone();
-            this.tseq = modelAlign.tseq.clone();
-            this.aln = modelAlign.aln.clone();
-            throw new Exception(String.format("fullyClone not fully implemented in FlowgramAlignment constructor."));
-        }
-        //TODO, see if there's other items, i.e. nonEmptyFlowLast, that are needed
-        /*
-         nonEmptyFlowFirst
-         nonEmptyFlowLast
-         tseqStart
-         tseqEnd
-         tseqLength
-         */
-    }
-    
     /** 
      * Reverse the alignment.
      *
@@ -814,7 +776,7 @@ public class FlowgramAlignment
             this.aln[this.length] = ALN_INS;
             this.tseq[this.length] = 0;
         }
-        else if(getBC(qseqN) == getBC(tseqN)) {
+        else if(SamToFlowgramAlignUtil.getBaseCallFromFlowSignal(qseqN) == SamToFlowgramAlignUtil.getBaseCallFromFlowSignal(tseqN)) {
             this.aln[this.length] = ALN_MATCH;
         }
         else {
@@ -853,10 +815,9 @@ public class FlowgramAlignment
                 // while we have a base to shift
                 k = i + 1; // right non-indel base
                 // shift over while valid shifts exist
-                //System.err.println("Found at i=" + i + " j=" + j);
                 while(lower < j 
                         && (ALN_MATCH == this.aln[k] || ALN_MISMATCH == this.aln[k])
-                        //&& this.tseq[k] == 0
+                        && this.tseq[k] == 0
                         && this.flowOrder[k] == this.flowOrder[j]) 
                 {
                     int tmpInt;
@@ -884,171 +845,10 @@ public class FlowgramAlignment
 
         return adjusted;
     }
-
-    private int getBC(int FS) {
-        return SamToFlowgramAlignUtil.getBaseCallFromFlowSignal(FS);
-    }
-    
-    private int getFS(int BC) {
-        return SamToFlowgramAlignUtil.getFlowSignalFromBaseCall(BC);
-    }
-    
-    /**
-     * Tries to handle how an insertion of base in the middle of an HP is represented in flow space.
-     */
-    public boolean splitReferenceFlows()
-    {
-        int i, j, k, numRemoveDel = 0;
-        boolean adjusted = false, found, removeDel = false;
-        int lower = 0;
-        int diffEnd, diffStart, val;
-
-        i = this.length - 1; 
-        while(lower < i) {
-            if(ALN_MISMATCH != this.aln[i] && ALN_DEL != this.aln[i]) {
-                i--;
-                continue;
-            }
-            //System.err.println("FOUND " + this.aln[i] + " at i=" + i);
-            diffEnd = getBC(this.tseq[i]) - getBC(this.qseq[i]); 
-            // test if we can shift over the tseq values
-            j = i;
-            diffStart = 0;
-            found = false;
-            while(lower < j-1) {
-                // break when:
-                // 1. different flow order with tseq > 0
-                // 2. same flow order with diffStart != 0 
-                if(0 < this.tseq[j-1] && this.flowOrder[j] == this.flowOrder[i]) {
-                    break;
-                }
-                diffStart = getBC(this.tseq[j-1]) - getBC(this.qseq[j-1]); 
-                if(0 != diffStart && this.flowOrder[j-1] == this.flowOrder[i]) {
-                    j--;
-                    found = true; // This is what we want
-                    break;
-                }
-                j--;
-            }
-            //System.err.println("Found start =" + found + " at j=" + j);
-            if(!found) {
-                i--;
-                continue;
-            }
-            // same flow order with diffStart != 0
-            // NB: val is the # of bases to subtract from the start and
-            // add to the end.
-            val = 0;
-            if(diffStart < 0 && 0 < diffEnd) {
-                // NB: subtract a negative value 
-                if(-diffStart < diffEnd) { 
-                    val = diffStart; 
-                }
-                else {
-                    val = -diffEnd;
-                }
-            }
-            else if(0 < diffStart && diffEnd < 0) {
-                // NB: subtract a positive value 
-                if(diffStart < -diffEnd) {
-                    val = diffStart;
-                }
-                else {
-                    val = -diffEnd;
-                }
-            }
-            if(0 < val) {
-                this.tseq[j] -= getFS(val);
-                this.tseq[i] += getFS(val);
-                // adjust alignment
-                if(getBC(this.tseq[i]) == getBC(this.qseq[i])) {
-                    if(ALN_MISMATCH == this.aln[i]) {
-                        this.aln[i] = ALN_MATCH;
-                    }
-                    else if(ALN_DEL == this.aln[i]) {
-                        if(0 == this.tseq[i]) {
-                            // TODO: remove the deletion
-                            removeDel = true;
-                            numRemoveDel++;
-                        }
-                    }
-                }
-                else { // mismatch
-                    if(ALN_MISMATCH == this.aln[i]) {
-                        // do nothing
-                    }
-                    else if(ALN_DEL == this.aln[i]) {
-                        // do nothing
-                    }
-                }
-                if(getBC(this.tseq[j]) == getBC(this.qseq[j])) {
-                    if(ALN_MISMATCH == this.aln[j]) {
-                        this.aln[j] = ALN_MATCH;
-                    }
-                    else if(ALN_DEL == this.aln[j]) {
-                        if(0 == this.tseq[j]) { // no more deletion
-                            // TODO: remove this deletion
-                            removeDel = true;
-                            numRemoveDel++;
-                        }
-                    }
-                    else if(ALN_DEL == this.aln[j]) { // NB: getBC(this.qseq[j]) == 0
-                        if(0 < this.tseq[j]) {
-                            this.aln[j] = ALN_MATCH;
-                        }
-                    }
-                }
-                else { // mismatch
-                    if(ALN_MISMATCH == this.aln[j]) {
-                        // ignore
-                    }
-                    else if(ALN_DEL == this.aln[j]) { // NB: getBC(this.qseq[j]) == 0
-                        // ignore, since if 0 < this.tseq[j] then it is still a deletion,
-                        // and if this.tseq[j] == 0, then it should never get here...
-                    }
-                    else if(ALN_INS == this.aln[j]) {
-                        if(0 < this.tseq[j]) {
-                            this.aln[j] = ALN_MISMATCH;
-                        }
-                    }
-                }
-                adjusted = true;
-            }
-            i--;
-        }
-
-        // remove deletions that are no longer valid
-        if(removeDel) {
-            // save temp
-            byte tmpFlowOrder[] = this.flowOrder;
-            int tmpQseq[] = this.qseq;
-            char tmpAln[] = this.aln;
-            int tmpTseq[] = this.tseq;
-            // realloc
-            this.qseq = new int[this.qseq.length - numRemoveDel];
-            this.aln = new char[this.aln.length - numRemoveDel];
-            this.tseq = new int[this.tseq.length - numRemoveDel];
-            this.flowOrder = new byte[this.flowOrder.length - numRemoveDel];
-            // save
-            for(i=j=0;i<tmpAln.length;i++) {
-                if(ALN_DEL == tmpAln[i] && 0 == tmpTseq[i]) {
-                    continue;
-                }
-                // copy
-                this.qseq[j] = tmpQseq[j];
-                this.aln[j] = tmpAln[j];
-                this.tseq[j] = tmpTseq[j];
-                this.flowOrder[j] = tmpFlowOrder[j];
-                j++;
-            }
-        }
-
-        return adjusted;
-    }
     
     /**
      * Debugging print function.
-     * @param stream the output stream.
+     * @param out the output stream.
      */
     public void print(PrintStream stream) 
     {
@@ -1107,20 +907,15 @@ public class FlowgramAlignment
                 numChars++;
             }
             // qseq
-            if(ALN_DEL == this.aln[i]) {
-                if(align) {
-                    for(j=1;j<maxWidth;j++) {
-                        qseq.append(" ");
-                    }
+            if(align) {
+                for(j=this.charWidth(this.qseq[i]);j<maxWidth;j++) {
+                    qseq.append(" ");
                 }
+            }
+            if(ALN_DEL == this.aln[i]) {
                 qseq.append(ALN_DEL);
             }
             else {
-                if(align) {
-                    for(j=this.charWidth(this.qseq[i]);j<maxWidth;j++) {
-                        qseq.append(" ");
-                    }
-                }
                 qseq.append(this.qseq[i]);
             }
             // aln
@@ -1131,20 +926,15 @@ public class FlowgramAlignment
             }
             aln.append(this.aln[i]);
             // tseq
-            if(ALN_INS == this.aln[i]) {
-                if(align) {
-                    for(j=1;j<maxWidth;j++) {
-                        tseq.append(" ");
-                    }
+            if(align) {
+                for(j=this.charWidth(this.tseq[i]);j<maxWidth;j++) {
+                    tseq.append(" ");
                 }
+            }
+            if(ALN_INS == this.aln[i]) {
                 tseq.append(ALN_INS);
             }
             else {
-                if(align) {
-                    for(j=this.charWidth(this.tseq[i]);j<maxWidth;j++) {
-                        tseq.append(" ");
-                    }
-                }
                 tseq.append(this.tseq[i]);
             }
             // flow order
@@ -1158,11 +948,6 @@ public class FlowgramAlignment
         }
         string.append(qseq.toString() + "\n" + aln.toString() + "\n" + tseq.toString() + "\n" + flowOrder.toString()); 
         return string.toString();
-    }
-    
-    public String getAlignmentString(boolean prettyPrint) 
-    {
-        return this.getAlignmentString(Integer.MAX_VALUE, prettyPrint);
     }
 
     public String getAlignmentString() 

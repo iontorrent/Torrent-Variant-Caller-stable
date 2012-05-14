@@ -2,7 +2,6 @@
 //here be dragons
 package org.iontorrent.sam2flowgram.util;
 
-import org.broadinstitute.sting.utils.collections.Pair;
 import org.iontorrent.sam2flowgram.flowalign.*;
 
 import net.sf.samtools.*;
@@ -81,10 +80,11 @@ public class FlowAlignRecord implements Cloneable {
         this.positionStart = record.getAlignmentStart();
         this.positionEnd = record.getAlignmentEnd();
         this.strand = record.getReadNegativeStrandFlag();
-        this.flowOrder = new FlowOrder(flowOrder);
+        this.flowOrder = flowOrder;
         this.alignment = null;
     }
 
+    
     public FlowAlignRecord(FlowAlignRecord toCopy) {
      
     }
@@ -99,7 +99,7 @@ public class FlowAlignRecord implements Cloneable {
         final FlowAlignRecord newRecord = (FlowAlignRecord)super.clone();
         newRecord.fileIndex = this.fileIndex;
         newRecord.referenceIndex = this.referenceIndex;
-        newRecord.flowOrder = new FlowOrder(this.flowOrder);
+        newRecord.flowOrder = this.flowOrder;
         newRecord.alignment = this.alignment;
         try{
             newRecord.record = (SAMRecord)this.record.clone();
@@ -320,22 +320,9 @@ public class FlowAlignRecord implements Cloneable {
         // b. get the flow order start index, given the key sequence, hard clip bases, and soft clip bases
         // c. adjust the flow signals based on the start index, and last non-read base (last base of the key, or last base of the hard clip)
         // TODO
-        flowSignals = this.readSeq.updateFlowInformation(this.strand, this.flowOrder, flowSignals, SamToFlowgramAlignUtil.getFlowSignalsStart(this.record));
+        flowSignals = this.readSeq.updateFlowInformation(this.strand, this.flowOrder, flowSignals);
         this.flowOrderIndexStart = this.readSeq.getFlowOrderIndexStart();
 
-        /*
-        System.err.println("FLOW SIGNALS!");
-        System.err.println("this.flowOrderIndexStart=" + this.flowOrderIndexStart);
-        for(i=0;i<flowSignals.length;i++) {
-            if(0 < i) {
-                System.err.print(",");
-            }
-
-            System.err.print("" + flowSignals[i]);
-        }
-        System.err.print("");
-        */
-        
         // rotate the flow order to match the first flow in readBases for the flow space pre-alignment
         this.flowOrder.rotate(this.flowOrderIndexStart, true);
 
@@ -388,9 +375,6 @@ public class FlowAlignRecord implements Cloneable {
             // This is required for the graph ordering to work.
             this.alignment.rightAdjustIndels();
         }
-
-        // split reference flows
-        this.alignment.splitReferenceFlows();
 
         return this.alignment;
     }
@@ -734,147 +718,4 @@ public class FlowAlignRecord implements Cloneable {
         
         return sb.toString();
      }
-
-     public void getSignalAndOffset(long position, Tuple<Integer> signalOffset) {
-         getSignalOrIndexAndOffset(position,signalOffset,true);
-     }
-
-     public void getIndexAndOffset(long position, Tuple<Integer> signalOffset) {
-         getSignalOrIndexAndOffset(position,signalOffset,false);
-     }
-    
-     public void getSignalOrIndexAndOffset(long position, Tuple<Integer> tuple, Boolean returnSignal) {
-         int i;
-         long t;
-         tuple.one = tuple.two = -1;
-         if(position < this.positionStart || this.positionEnd < position || null == this.alignment) {
-             // TODO: throw exception
-             return;
-         }
-         // TODO: precompute these...
-
-         if(!this.strand) { // forward
-             t = this.positionStart;
-             for(i=0;i<this.alignment.tseq.length;i++) {
-                 //if(this.alignment.aln[i] == FlowgramAlignment.FROM_I) continue;
-                 int l = SamToFlowgramAlignUtil.getBaseCallFromFlowSignal(this.alignment.tseq[i]);
-                 if(position <= t + l - 1) {
-                     // TODO: we may want to avoid creating a tuple object each time
-                     tuple.one = returnSignal ? this.alignment.qseq[i] : i;
-                     tuple.two = (int)(position - t);
-                     return;
-                 }
-                 if(this.alignment.aln[i] != FlowgramAlignment.FROM_I) { // TODO: is this necessary
-                     t += l;
-                 }
-             }
-         }
-         else { // reverse
-             t = this.positionEnd;
-             for(i=this.alignment.tseq.length-1;0<=i;i--) {
-                 //if(this.alignment.aln[i] == FlowgramAlignment.FROM_I) continue;
-                 int l = SamToFlowgramAlignUtil.getBaseCallFromFlowSignal(this.alignment.tseq[i]);
-                 if(t - l + 1 <= position) {
-                     // TODO: we may want to avoid creating a tuple object each time
-                     tuple.one = returnSignal? this.alignment.qseq[i] : i;
-                     tuple.two = (int)(position - (t - l + 1));
-                     return;
-                 }
-                 if(this.alignment.aln[i] != FlowgramAlignment.FROM_I) { // TODO: is this necessary
-                     t -= l;
-                 }
-             }
-         }
-         return;
-     }
-
-     public Tuple<Integer> getSignalAndOffset(long position) {
-         Tuple<Integer> t = new Tuple();
-         this.getSignalAndOffset(position, t);
-         if(-1 == t.one && -1 == t.two) {
-             return null;
-         }
-         return t;
-     }
-     
-     public int getSignal(long position) { 
-         Tuple<Integer> t = getSignalAndOffset(position);
-         if(null == t) { 
-             return -1;
-         } 
-         return t.one;
-     }
-    
-    public int getAlignIndex(long position) {
-         Tuple<Integer> t = new Tuple<Integer>();
-        this.getIndexAndOffset(position, t);
-         if(null == t) {
-             return -1;
-         }
-         return t.one;
-    }
-    
-    /**
-     * Extracts a subregion of the alignment, based on a queried genomic location.
-     *
-     * @param subregionPos the genomic position around where the subregion will be taken
-     * @param windowNumFlows the number of flows before and after the position
-     * @param variantDependentWindow if true, then window will start after the end of the variant
-     */
-    public FlowgramAlignment extractPartialRegion(long subregionPos,
-                                                  int windowNumFlows, Boolean variantDependentWindow) throws Exception {
-        FlowgramAlignment subAlign;
-        subAlign = new FlowgramAlignment(this.alignment,false);
-
-
-        /*
-        FlowgramAlignment subAlign = read.flowAlign.extractPartialRegion(variantPosition, numFlowWindowSize,true);
-        flowAlignContextPileupStrm.printf("addRead:" + threadId + ";" + variantNum + ";" + subAlign.variantStart + ";" + subAlign.length + ";");
-        */
-
-        //Todo check if this returns an invalid value like -1.
-        int alignIndex = this.getAlignIndex(subregionPos);
-        //System.err.printf("getAlignIndex(" + subregionPos + ") = " + alignIndex + "\n");
-        int minAlignIndex;
-        if (alignIndex < windowNumFlows) minAlignIndex = 0;
-        else minAlignIndex = alignIndex - windowNumFlows;
-        
-        Boolean reachedAlignPos = false;
-        Boolean reachedMatchAfterAlign = false;
-        int positionsAfter = 0;
-
-        subAlign.flowOrder = new byte[this.alignment.length-minAlignIndex];
-        subAlign.qseq = new int[this.alignment.length-minAlignIndex];
-        subAlign.tseq = new int[this.alignment.length-minAlignIndex];
-        subAlign.aln = new char[this.alignment.length-minAlignIndex];
-
-        subAlign.variantStart = -1;
-
-        for(int curAlignIndex = minAlignIndex; curAlignIndex<this.alignment.length; curAlignIndex++) {
-            //System.err.printf(curAlignIndex + "," + alignIndex + "," + subAlign.length + "\n");
-            if(curAlignIndex==alignIndex) {
-                reachedAlignPos = true;
-                subAlign.variantStart = curAlignIndex - minAlignIndex;
-                subAlign.variantEnd = subAlign.variantStart;
-            } else if(reachedAlignPos) {
-                if (this.alignment.aln[curAlignIndex] == this.alignment.ALN_MATCH || !variantDependentWindow) {
-                    reachedMatchAfterAlign = true;
-                    subAlign.variantEnd = curAlignIndex - minAlignIndex - 1;
-                }
-            }
-            if (reachedMatchAfterAlign) {
-                positionsAfter++;
-                if (positionsAfter > windowNumFlows) {
-                    break;
-                }
-            }
-            subAlign.length =  curAlignIndex-minAlignIndex;
-            subAlign.flowOrder[subAlign.length] =  this.alignment.flowOrder[curAlignIndex];
-            subAlign.qseq[subAlign.length] =  this.alignment.qseq[curAlignIndex];
-            subAlign.tseq[subAlign.length] =  this.alignment.tseq[curAlignIndex];
-            subAlign.aln[subAlign.length] = this.alignment.aln[curAlignIndex];
-        }
-        subAlign.length++;
-        return subAlign;
-    }
 }

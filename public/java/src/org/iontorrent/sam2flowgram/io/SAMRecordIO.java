@@ -306,9 +306,6 @@ public class SAMRecordIO
         } catch(NullPointerException e) {
             throw new Exception("Read group ID not found in the SAM/BAM record");
         }
-        if(null == readGroup) {
-            throw new Exception("Read group ID not found in the SAM/BAM record");
-        }
         if(null == this.flowOrders || null == this.flowOrders.get(fileIndex)) {
             throw new Exception("Could not find the flow order for the read with read group ID: " + readGroup.getId());
         }
