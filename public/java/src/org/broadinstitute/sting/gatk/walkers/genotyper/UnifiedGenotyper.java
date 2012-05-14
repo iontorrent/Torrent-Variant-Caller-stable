@@ -145,6 +145,12 @@ public class UnifiedGenotyper extends LocusWalker<VariantCallContext, UnifiedGen
     @Argument(fullName = "metrics_file", shortName = "metrics", doc = "File to print any relevant callability metrics output", required = false)
     protected PrintStream metricsWriter = null;
 
+    //Ion Flow intensities
+    @Argument(fullName = "flow_debug_file", shortName = "flow_debug", doc = "File of flow intensities debugging info around each VCF call", required = false)
+    protected PrintStream flowIntensityWriter = null;
+
+    @Argument(fullName = "flow_align_context_file", shortName = "flow_context", doc = "File of flow intensity context around each VCF call", required = false)
+    protected PrintStream flowAlignContextPileupStrm = null;
     /**
      * Which annotations to add to the output VCF file. See the VariantAnnotator -list argument to view available annotations.
      */
@@ -165,7 +171,7 @@ public class UnifiedGenotyper extends LocusWalker<VariantCallContext, UnifiedGen
     protected String[] annotationClassesToUse = { "Standard" };
 
     // the calculation arguments
-    private UnifiedGenotyperEngine UG_engine = null;
+    private IonUnifiedGenotyperEngine UG_engine = null;
 
     // the annotation engine
     private VariantAnnotatorEngine annotationEngine;
@@ -227,7 +233,7 @@ public class UnifiedGenotyper extends LocusWalker<VariantCallContext, UnifiedGen
             verboseWriter.println("AFINFO\tLOC\tREF\tALT\tMAF\tF\tAFprior\tAFposterior\tNormalizedPosterior");
 
         annotationEngine = new VariantAnnotatorEngine(Arrays.asList(annotationClassesToUse), annotationsToUse, annotationsToExclude, this, getToolkit());
-        UG_engine = new UnifiedGenotyperEngine(getToolkit(), UAC, logger, verboseWriter, annotationEngine, samples);
+        UG_engine = new IonUnifiedGenotyperEngine(getToolkit(), UAC, logger, verboseWriter, annotationEngine, samples, flowIntensityWriter, flowAlignContextPileupStrm);
 
         // initialize the header
         Set<VCFHeaderLine> headerInfo = getHeaderInfo();
@@ -236,7 +242,9 @@ public class UnifiedGenotyper extends LocusWalker<VariantCallContext, UnifiedGen
         // and perform any necessary initialization/validation steps
         annotationEngine.invokeAnnotationInitializationMethods(headerInfo);
 
-        writer.writeHeader(new VCFHeader(headerInfo, samples));
+        VCFHeader vcfHeader = new VCFHeader(headerInfo, samples);
+        writer.writeHeader(vcfHeader);
+        UG_engine.writeHeader(vcfHeader);
     }
 
     private Set<VCFHeaderLine> getHeaderInfo() {
@@ -287,7 +295,9 @@ public class UnifiedGenotyper extends LocusWalker<VariantCallContext, UnifiedGen
      * @return the VariantCallContext object
      */
     public VariantCallContext map(RefMetaDataTracker tracker, ReferenceContext refContext, AlignmentContext rawContext) {
-        return UG_engine.calculateLikelihoodsAndGenotypes(tracker, refContext, rawContext);
+        return UAC.IGNORE_FLOW_INTENSITIES ?
+                UG_engine.calculateLikelihoodsAndGenotypes(tracker, refContext, rawContext) :
+                UG_engine.calculateLikelihoodsAndGenotypesIon(tracker, refContext, rawContext);
     }
 
     public UGStatistics reduceInit() { return new UGStatistics(); }

@@ -157,6 +157,20 @@
         <pathelement location="${scala.classes}" />
     </path>
 
+
+    <!-- ***************************************************** -->
+    <!-- Ion Torrent properties                                -->
+    <!-- ***************************************************** -->
+    <!-- Right now, mainly to build SamToFlowgramAlign.jar -->
+    <!-- Picard version: need to adjust with GATK updates that may up this version -->                                              
+    <property name="sam-version" value="1.59.1066"/>
+    <property name="picard-version" value="1.59.1066"/>
+    <property name="main-class.vh" value="org.iontorrent.sam2flowgram.flowalign.SamToFlowgramAlign" />
+    <property name="executable" value="SamToFlowgramAlign" />
+
+    <!-- ********************************************** -->
+    <!-- GATK init                                      -->
+    <!-- ********************************************** -->
     <target name="init.resolve" unless="init.resolve.done">
         <!-- ivy properties -->
         <property name="ivy.install.version" value="2.2.0"/>
@@ -169,7 +183,7 @@
       <mkdir dir="${lib.dir}"/>
       <mkdir dir="${ivy.jar.dir}"/>
 
-      <!-- Comment out the following two lines to build the GATK without a network connection, assuming you have all of the libraries cached already -->
+      <!-- Comment out the get src and ivy:retrieve statements below to build the GATK without a network connection, assuming you have all of the libraries cached already -->
       <get src="http://repo1.maven.org/maven2/org/apache/ivy/ivy/${ivy.install.version}/${ivy.jar.file}"
            dest="${ivy.jar.dir}/${ivy.jar.file}"
            usetimestamp="true"/>
@@ -608,6 +622,8 @@
 	          <include name="${resource.file}" />
               <include name="**/gatk/**/*.class" />
               <include name="**/alignment/**/*.class"/>
+              <include name="**/sam2flowgram/**/*.class"/>  <!-- Added to support flowgram alignment -->
+	      <include name="**/vc/**/*.class"/>  <!-- Ion specific variant calling classes -->
             </fileset>
             <fileset dir="${R.public.scripts.dir}">
                 <include name="**/gatk/**/*.R"/>
@@ -624,6 +640,22 @@
                 <attribute name="Main-Class" value="org.broadinstitute.sting.gatk.CommandLineGATK" />
             </manifest>
         </jar>
+
+		<!-- Ion Torrent added to make jar file for performing Flowgram alignment  -->
+		<jar jarfile="${dist.dir}/SamToFlowgramAlign.jar" duplicate="fail" index="true">
+			<fileset dir="${java.classes}">
+				<include name="**/sam2flowgram/**/*.class" />
+			</fileset>
+			<!-- to get it to build, this removed in above line: basedir="${java.classes}"
+		 but now won't run [classpath issue probably] -->
+			<zipfileset src="${lib.dir}/sam-${sam-version}.jar" includes="**/*.class"/>
+			<zipfileset src="${lib.dir}/picard-${picard-version}.jar" includes="**/*.class"/>
+			<manifest>
+				<attribute name="Implementation-Version" value="versionGATK" /> <!-- old-value="version-${version}-build-${git-build}-${buildtime}-${system}"/> -->
+				<attribute name="Main-Class" value="${main-class.vh}"/>
+			</manifest>
+		</jar>
+		<!-- End of Ion Torrent additions -->
 
         <jar jarfile="${dist.dir}/Aligner.jar">
             <fileset dir="${java.classes}" includes="**/alignment/**/*.class" />

@@ -127,6 +127,12 @@ public class UnifiedArgumentCollection {
     @Argument(fullName = "indel_heterozygosity", shortName = "indelHeterozygosity", doc = "Heterozygosity for indel calling", required = false)
     public double INDEL_HETEROZYGOSITY = 1.0/8000;
 
+    /**
+     * Ignore flow intensities (which means do plain old GATK)
+     */
+    @Argument(fullName = "ignoreFlowIntensities", shortName = "ifi", doc = "Ignores flow intensities (standard GATK).", required = false)
+    public boolean IGNORE_FLOW_INTENSITIES = false;
+
     @Hidden
     @Argument(fullName = "indelGapContinuationPenalty", shortName = "indelGCP", doc = "Indel gap continuation penalty", required = false)
     public double INDEL_GAP_CONTINUATION_PENALTY = 10.0;
@@ -169,6 +175,7 @@ public class UnifiedArgumentCollection {
         uac.MAX_DELETION_FRACTION = MAX_DELETION_FRACTION;
         uac.MIN_INDEL_COUNT_FOR_GENOTYPING = MIN_INDEL_COUNT_FOR_GENOTYPING;
         uac.INDEL_HETEROZYGOSITY = INDEL_HETEROZYGOSITY;
+        uac.IGNORE_FLOW_INTENSITIES = IGNORE_FLOW_INTENSITIES;
         uac.INDEL_GAP_OPEN_PENALTY = INDEL_GAP_OPEN_PENALTY;
         uac.INDEL_GAP_CONTINUATION_PENALTY = INDEL_GAP_CONTINUATION_PENALTY;
         uac.OUTPUT_DEBUG_INDEL_INFO = OUTPUT_DEBUG_INDEL_INFO;

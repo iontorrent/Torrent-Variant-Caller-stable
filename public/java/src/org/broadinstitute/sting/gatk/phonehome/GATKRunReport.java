@@ -69,8 +69,9 @@ public class GATKRunReport {
     /**
      * The root file system directory where we keep common report data
      */
-    private static File REPORT_DIR = new File("/humgen/gsa-hpprojects/GATK/reports");
-
+    private static File REPORT_ENABLE_DIR = new File(System.getenv("PLUGINCONFIG__PLUGIN_PATH") + "/TVC/bugReports");
+    private static File REPORT_DIR = new File(System.getenv("TSP_PLUGIN_SCRATCH") + "/TVC-log");
+    
     private static final String REPORT_BUCKET_NAME = "GATK_Run_Reports";
 
     /**
@@ -82,7 +83,7 @@ public class GATKRunReport {
      * Full path to the sentinel file that controls whether reports are written out.  If this file doesn't
      * exist, no long will be written
      */
-    private static File REPORT_SENTINEL = new File(REPORT_DIR.getAbsolutePath() + "/ENABLE");
+    private static File REPORT_SENTINEL = new File(REPORT_ENABLE_DIR.getAbsolutePath() + "/ENABLE");
 
     /**
      * our log
@@ -206,7 +207,8 @@ public class GATKRunReport {
                 if ( repositoryIsOnline() ) {
                     postReportToLocalDisk(REPORT_SUBMIT_DIR);
                 } else {
-                    postReportToAWSS3();
+                    // Manually disable
+                    // postReportToAWSS3();
                 }
                 break;
             case STDOUT:
