@@ -24,8 +24,11 @@
 package org.broadinstitute.sting.utils.pileup;
 
 import org.broadinstitute.sting.utils.GenomeLoc;
+import org.broadinstitute.sting.utils.collections.Pair;
 import org.broadinstitute.sting.utils.sam.GATKSAMRecord;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -79,5 +82,37 @@ public class ReadBackedPileupImpl extends AbstractReadBackedPileup<ReadBackedPil
     protected PileupElement createNewPileupElement(GATKSAMRecord read, int offset, boolean isDeletion, boolean isBeforeDeletion, boolean isBeforeInsertion, 
                                                    boolean isNextToSoftClip,String nextEventBases, final int nextEventLength) {
         return new PileupElement(read, offset, isDeletion, isBeforeDeletion, isBeforeInsertion, isNextToSoftClip, nextEventBases,nextEventLength);
+    }
+
+    /**
+     * Creates a list of different base calls with the associated reads.
+     * @return event list of base (byte) and associated list of reads
+     */
+    public List<Pair<Byte,List<GATKSAMRecord>>> getEventBaseWithReadList(byte refBase) {
+        Map<Byte, List<GATKSAMRecord>> events = new HashMap<Byte, List<GATKSAMRecord>>();
+        for(PileupElement pe : this) {
+            List<GATKSAMRecord> samRecords;
+            samRecords = events.get(pe.getBase());
+            if (samRecords == null) {
+                samRecords = new ArrayList<GATKSAMRecord>();
+            }
+            samRecords.add(pe.getRead());
+            events.put(pe.getBase(),samRecords);
+            pe.getBase();
+        }
+        
+        List<Pair<Byte, List<GATKSAMRecord>>> eventList = new ArrayList<Pair<Byte, List<GATKSAMRecord>>>(events.size());
+
+        // Add reference first
+        List<GATKSAMRecord> samRecords;
+        samRecords = events.get(refBase);  // Note, this could be null
+        eventList.add(new Pair<Byte, List<GATKSAMRecord>>(refBase,samRecords));
+
+        // Add the rest.
+        for(Map.Entry<Byte, List<GATKSAMRecord>> m : events.entrySet()) {
+            if (m.getKey() != refBase)  // Skip ref Base since it was added first
+                eventList.add(new Pair<Byte, List<GATKSAMRecord>>(m.getKey(), m.getValue()));
+        }
+        return eventList;
     }
 }

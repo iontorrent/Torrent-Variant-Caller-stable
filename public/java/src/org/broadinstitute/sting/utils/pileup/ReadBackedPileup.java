@@ -26,6 +26,7 @@ package org.broadinstitute.sting.utils.pileup;
 
 import org.broadinstitute.sting.utils.GenomeLoc;
 import org.broadinstitute.sting.utils.HasGenomeLocation;
+import org.broadinstitute.sting.utils.collections.Pair;
 import org.broadinstitute.sting.utils.fragments.FragmentCollection;
 import org.broadinstitute.sting.utils.sam.GATKSAMRecord;
 
@@ -241,4 +242,11 @@ public interface ReadBackedPileup extends Iterable<PileupElement>, HasGenomeLoca
      * @return
      */
     public FragmentCollection<PileupElement> toFragments();
+
+    /**
+     * Creates a list of different base calls with the associated reads.
+     * @return event list of base (byte) and associated list of reads
+     * @param refBase
+     */
+    public List<Pair<Byte,List<GATKSAMRecord>>> getEventBaseWithReadList(byte refBase);
 }

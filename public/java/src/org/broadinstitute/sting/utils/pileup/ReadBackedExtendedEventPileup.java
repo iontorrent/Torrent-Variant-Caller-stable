@@ -198,6 +198,13 @@ public interface ReadBackedExtendedEventPileup extends ReadBackedPileup {
      */
     public List<Pair<String,Integer>> getEventStringsWithCounts(byte[] refBases);
 
+    /**
+     * Same as getEveentStringWithCounts, except has list of reads instead of just counts.
+     * @param refBases same input as getEventStringsWithCounts
+     * @return same as getEventStringsWithCounts except associated list of reads is returned instead of just counts
+     */
+    public List<Pair<String, List<GATKSAMRecord>>> getEventStringWithReadList(byte[] refBases, Boolean refFirst);
+
     public String getShortPileupString();    
 
     /**

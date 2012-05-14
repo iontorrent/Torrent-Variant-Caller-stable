@@ -23,6 +23,7 @@
  */
 package org.broadinstitute.sting.utils.pileup;
 
+import net.sf.samtools.SAMRecord;
 import org.broadinstitute.sting.utils.GenomeLoc;
 import org.broadinstitute.sting.utils.collections.Pair;
 import org.broadinstitute.sting.utils.exceptions.ReviewedStingException;
@@ -227,6 +228,66 @@ public class ReadBackedExtendedEventPileupImpl extends AbstractReadBackedPileup<
         }
         return eventList;
     }
+
+    /**
+     * Same as getEventStringsWithCounts, except returns a list of SAMRecords associated
+     * with each sequence instead of just the counts.
+     * @param refBases same input as getEventStringsWithCounts
+     * @param refFirst set to true if you want the reference to be first in the list (even if there are no reads)
+     * @return list of distinct events; first element of a pair is a string representation of the event,
+     *         second element gives the list of reads, in which that event was observed
+     */
+    public List<Pair<String, List<GATKSAMRecord>>> getEventStringWithReadList(byte[] refBases, Boolean refFirst) {
+        // Basically a copy of the above function, but storing a list of GATKSAMRecords instead of
+        // just a count.
+        Map<String, List<GATKSAMRecord>> events = new HashMap<String, List<GATKSAMRecord>>();
+
+        List<GATKSAMRecord> refReads = new ArrayList<GATKSAMRecord>();
+
+        for (ExtendedEventPileupElement e : this.toExtendedIterable()) {
+            List<GATKSAMRecord> samRecords;
+            String indel;
+            switch (e.getType()) {
+                case INSERTION:
+                    indel = "+" + e.getEventBases();
+                    break;
+                case DELETION:
+                    //ToDo, figure out why adding ref bases here isn't working.
+                    indel = getDeletionString(e.getEventLength(), refFirst?null:refBases);
+                    break;
+                case NOEVENT:
+                    refReads.add(e.getRead());
+                    continue;
+                default:
+                    throw new ReviewedStingException("Unknown event type encountered: " + e.getType());
+            }
+
+            samRecords = events.get(indel);
+            if (samRecords == null) {
+                samRecords = new ArrayList<GATKSAMRecord>();
+            }
+            samRecords.add(e.getRead());
+            events.put(indel, samRecords);
+        }
+
+        String ref = "";
+        List<Pair<String, List<GATKSAMRecord>>> eventList = new ArrayList<Pair<String, List<GATKSAMRecord>>>(events.size());
+        if (refFirst) {
+            ref = new String(refBases);
+            eventList.add(new Pair<String, List<GATKSAMRecord>>(ref,refReads));
+        }
+        for (Map.Entry<String, List<GATKSAMRecord>> m : events.entrySet()) {
+            if (!refFirst || !m.getKey().equals(ref))
+                eventList.add(new Pair<String, List<GATKSAMRecord>>(m.getKey(), m.getValue()));
+        }
+        return eventList;
+    }
+
+    //ToDo, avoids a compile type error, but why?  Maybe not smart enough to see this is never called, or is it?
+    public List<Pair<Byte,List<GATKSAMRecord>>> getEventBaseWithReadList(byte refBase) {
+        return null;
+    }
+
 
     /**
      * Builds string representation of the deletion event. If refBases is null, the representation will be
