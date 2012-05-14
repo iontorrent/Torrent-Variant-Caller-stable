@@ -31,6 +31,7 @@ import org.apache.log4j.Logger;
 import org.broad.tribble.Feature;
 import org.broadinstitute.sting.commandline.*;
 import org.broadinstitute.sting.gatk.arguments.GATKArgumentCollection;
+import org.broadinstitute.sting.gatk.arguments.IonArgumentCollection;
 import org.broadinstitute.sting.gatk.arguments.ValidationExclusion;
 import org.broadinstitute.sting.gatk.datasources.reads.*;
 import org.broadinstitute.sting.gatk.datasources.reference.ReferenceDataSource;
@@ -754,7 +755,28 @@ public class GenomeAnalysisEngine {
         if ( getWalkerBAQApplicationTime() == BAQ.ApplicationTime.FORBIDDEN && argCollection.BAQMode != BAQ.CalculationMode.OFF)
             throw new UserException.BadArgumentValue("baq", "Walker cannot accept BAQ'd base qualities, and yet BAQ mode " + argCollection.BAQMode + " was requested.");
 
-        return new SAMDataSource(
+        IonArgumentCollection argCollectionIon = (IonArgumentCollection)argCollection;
+        if(argCollectionIon.bypassFlowAlign) {
+            return new  SAMDataSource(
+                    samReaderIDs,
+                    threadAllocation,
+                    argCollection.numberOfBAMFileHandles,
+                    genomeLocParser,
+                    argCollection.useOriginalBaseQualities,
+                    argCollection.strictnessLevel,
+                    argCollection.readBufferSize,
+                    method,
+                    new ValidationExclusion(Arrays.asList(argCollection.unsafe)),
+                    filters,
+                    includeReadsWithDeletionAtLoci(),
+                    generateExtendedEvents(),
+                    getWalkerBAQApplicationTime() == BAQ.ApplicationTime.ON_INPUT ? argCollection.BAQMode : BAQ.CalculationMode.OFF,
+                    getWalkerBAQQualityMode(),
+                    refReader,
+                    getBaseRecalibration(),
+                    argCollection.defaultBaseQualities);
+        }
+        return new IonSAMDataSource(
                 samReaderIDs,
                 threadAllocation,
                 argCollection.numberOfBAMFileHandles,
