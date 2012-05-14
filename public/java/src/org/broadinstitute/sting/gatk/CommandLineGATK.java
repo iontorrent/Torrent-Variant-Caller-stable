@@ -32,6 +32,7 @@ import org.broadinstitute.sting.commandline.Argument;
 import org.broadinstitute.sting.commandline.ArgumentCollection;
 import org.broadinstitute.sting.commandline.CommandLineProgram;
 import org.broadinstitute.sting.gatk.arguments.GATKArgumentCollection;
+import org.broadinstitute.sting.gatk.arguments.IonArgumentCollection;
 import org.broadinstitute.sting.gatk.refdata.tracks.FeatureManager;
 import org.broadinstitute.sting.gatk.walkers.Attribution;
 import org.broadinstitute.sting.gatk.walkers.Walker;
@@ -58,7 +59,7 @@ public class CommandLineGATK extends CommandLineExecutable {
 
     // our argument collection, the collection of command line args we accept
     @ArgumentCollection
-    private GATKArgumentCollection argCollection = new GATKArgumentCollection();
+    private IonArgumentCollection argCollection = new IonArgumentCollection();
 
     /**
      * Get pleasing info about the GATK.
