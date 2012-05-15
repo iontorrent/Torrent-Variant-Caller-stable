@@ -167,7 +167,7 @@
     <property name="picard-version" value="1.59.1066"/>
     <property name="main-class.vh" value="org.iontorrent.sam2flowgram.flowalign.SamToFlowgramAlign" />
     <property name="executable" value="SamToFlowgramAlign" />
-
+    <property name="bay.score.path" value="public/c/bayscore" />
     <!-- ********************************************** -->
     <!-- GATK init                                      -->
     <!-- ********************************************** -->
@@ -640,22 +640,30 @@
                 <attribute name="Main-Class" value="org.broadinstitute.sting.gatk.CommandLineGATK" />
             </manifest>
         </jar>
-
-		<!-- Ion Torrent added to make jar file for performing Flowgram alignment  -->
-		<jar jarfile="${dist.dir}/SamToFlowgramAlign.jar" duplicate="fail" index="true">
-			<fileset dir="${java.classes}">
-				<include name="**/sam2flowgram/**/*.class" />
-			</fileset>
-			<!-- to get it to build, this removed in above line: basedir="${java.classes}"
-		 but now won't run [classpath issue probably] -->
-			<zipfileset src="${lib.dir}/sam-${sam-version}.jar" includes="**/*.class"/>
-			<zipfileset src="${lib.dir}/picard-${picard-version}.jar" includes="**/*.class"/>
-			<manifest>
-				<attribute name="Implementation-Version" value="versionGATK" /> <!-- old-value="version-${version}-build-${git-build}-${buildtime}-${system}"/> -->
-				<attribute name="Main-Class" value="${main-class.vh}"/>
-			</manifest>
-		</jar>
-		<!-- End of Ion Torrent additions -->
+        <!-- Ion Torrent added to make jar file for performing Flowgram alignment  -->
+        <jar jarfile="${dist.dir}/SamToFlowgramAlign.jar" duplicate="fail" index="true">
+          <fileset dir="${java.classes}">
+            <include name="**/sam2flowgram/**/*.class" />
+          </fileset>
+          <!-- to get it to build, this removed in above line: basedir="${java.classes}"
+               but now won't run [classpath issue probably] -->
+          <zipfileset src="${lib.dir}/sam-${sam-version}.jar" includes="**/*.class"/>
+          <zipfileset src="${lib.dir}/picard-${picard-version}.jar" includes="**/*.class"/>
+          <manifest>
+            <attribute name="Implementation-Version" value="versionGATK" /> <!-- old-value="version-${version}-build-${git-build}-${buildtime}-${system}"/> -->
+            <attribute name="Main-Class" value="${main-class.vh}"/>
+          </manifest>
+        </jar>
+        <!-- Making BayScorer .so file -->
+        <exec dir="public/c/bayscore" executable="make" failonerror="true">
+        </exec>
+        <copy todir="${dist.dir}">
+          <fileset dir="${bay.score.path}" includes="*.so"/>
+        </copy>
+        <move todir="${lib.dir}">
+            <fileset dir="${bay.score.path}" includes="*.so"/>
+        </move>
+        <!-- End of Ion Torrent additions -->
 
         <jar jarfile="${dist.dir}/Aligner.jar">
             <fileset dir="${java.classes}" includes="**/alignment/**/*.class" />
