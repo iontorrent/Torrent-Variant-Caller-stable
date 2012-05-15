@@ -7,32 +7,138 @@
 #include <math.h>
 #include "fasta-io.h"
 #include "zutil.h"
+#include <pthread.h>
 
 #include "posterior_flow.h"
-#define EC_CEILING 500.0
+#define EC_CEILING 800.0
 #define sizeofline 10000000
 static FILE *outp = stdout;
 static FILE *logfile = stderr;
 static char *hotfile = NULL;
+static FILE *hot_fp = NULL;
+static char hot_id[1000] = ".";
+static int hot_pos;
 static int neighbor = 0;
 static int num_error = 0;
 static int cur_pos;
 static int debug = 0;
 static float bscore_cut = 0.0;
 
-// line will be changed.
-void output_line(float bsc, char *line)
+
+static int check_is_hotspot(char *line_in)
 {
-	if (line == NULL || line[0] == 0) fatal("input vcf line empty\n");
-	char *begin_of_8th = line;
-	int i;
-	for (i = 0; i < 7; i++) {
-            begin_of_8th = strchr(begin_of_8th, '\t');
-            if (begin_of_8th == NULL) fatal("input vcf line does not have INFO (8th) field: %s\n", line);
-	    begin_of_8th++;
+
+    if (hotfile == NULL) return 0;
+    char sid[100];
+    int pos;
+    sscanf(line_in, "%s %d", sid, &pos);
+    if (debug) printf("INFO check_is_hotspot %s\t%d\t%s\t%d %s\n", sid, pos, hot_id, hot_pos, line_in);
+    char line[5000];
+    if (strcmp(sid, hot_id) != 0) return 0;
+    while (hot_pos < pos-neighbor) {
+	do {
+	    if (fgets(line, sizeof line, hot_fp) == NULL) return 0;
+	    if (line[0] == '#') continue;
+	    int rl, ol;
+	    char *s = strstr(line, "OBS=");
+	    if (s == NULL) continue;
+	    rl = strcspn(s+4, " ;\t\n");
+	    s =  strstr(line, "REF=");
+	    if (s == NULL) continue;
+	    ol = strcspn(s+4, " ;\t\n");
+	    if (ol == rl) continue;
+	    sscanf(line, "%s %d", hot_id, &hot_pos);
+	    break;
+	} while (1);
+	if (strcmp(sid, hot_id) != 0) return 0;
+    }
+    if (hot_pos <= pos+neighbor) return 1;
+    return 0;
+}
+
+static void clearCurSeq(const char *sid)
+{
+    char line[5000];
+    if (hotfile == NULL) return;
+    if (!hot_fp) hot_fp = ckopen(hotfile, "r");
+    while (strcmp(sid, hot_id) == 0) {
+	if (fgets(line, sizeof line, hot_fp) == NULL) return;
+	if (line[0] == '#') continue;
+	sscanf(line, "%s %d", hot_id, &hot_pos);
+	if (debug) printf("INFO: clearCurSeq   %s\t%s\t%d\n", sid, hot_id, hot_pos);
+    }
+}
+
+// line will be changed.
+
+char *getbeginofNth(char *line, int n, char cut)
+{
+        int i;
+	char *begin = line;
+        for (i = 0; i < n-1; i++) {
+            begin = strchr(begin, cut);
+            if (begin == NULL) fatal("input vcf line does not have %dth field: %s\n", i+2, line);
+            begin++;
+        }
+	return begin;
+}
+
+char *getbeginofNth(char *line, int n)
+{
+     return getbeginofNth(line, n, '\t');
+}
+
+char *getbeginofNthCut(char *line, int n, char cut)
+{
+	if (n <= 1) return line;
+	char *s = getbeginofNth(line, n, cut);
+	*(s-1) = 0;
+	return s;
+}
+
+char *getbeginofNthCut(char *line, int n)
+{
+  	return getbeginofNthCut(line, n, '\t');
+}
+
+int qual_rescale(float b)
+{
+    if (b < 25) return (int) (b*0.4);
+    int q = 10 + (int) ((b-25)*0.1894737);  // 25->10 500->100
+    if (q > 100) q = 100;
+    return q;
+}
+
+void output_line(float bsc, char *line, int is_at_hotspot)
+{
+	if (outp == NULL) return;
+	int no_call = 0;
+	if (strstr(line , "NO-CALL")) {
+	    if (!is_at_hotspot) return;
+	    else no_call = 1;
+	} else if (bsc < bscore_cut) {
+	    if (is_at_hotspot) {
+		no_call=1;
+	    } else return;
 	}
-	*(begin_of_8th-1) = 0; 
-	fprintf(outp, "%s\tBayesian_Score=%f;%s\n", line, bsc, begin_of_8th);
+	if (line == NULL || line[0] == 0) fatal("input vcf line empty\n");
+	char *begin_of_6th = getbeginofNthCut(line, 6);
+	char *begin_of_8th = getbeginofNthCut(begin_of_6th, 3);
+	int qual = qual_rescale(bsc);
+	fprintf(outp, "%s\t%d\tPASS\tBayesian_Score=%f;", line, qual, bsc);
+	if (is_at_hotspot) {fprintf(outp, "HS;");}
+	if (no_call) {
+	    char *begin = getbeginofNth(begin_of_8th,  3);
+	    strncpy(begin, "./.", 3);
+	}
+	char *begin_9th = getbeginofNthCut(begin_of_8th, 2);
+	int len = strlen(begin_of_8th);
+	if (begin_of_8th[len-1] == ';') begin_of_8th[len-1] = 0; // remove the ; at end of a field.
+	if (strstr(begin_of_8th, "APSD") == NULL) {
+	    char *begin_10th =  getbeginofNthCut(begin_9th, 2);
+	    char *split	= getbeginofNthCut(begin_10th, 7, ':');
+	    fprintf(outp, "%s\tGT:GQ:GL:DP:FDP:AD:APSD:AST:ABQV\t%s:.:%s\n", begin_of_8th, begin_10th, split);
+	} else fprintf(outp, "%s\t%s\n", begin_of_8th, begin_9th);
 }
 
 double poisson (double x, double Lam)
@@ -168,30 +274,37 @@ double flow_poster_prob_calc::calc_post_prob(int num, unsigned char *flow_order,
 }
 
 
-double flow_poster_prob_calc::prob_match(int ref_len, int flow_len)
+double flow_poster_prob_calc::prob_match(int ref_len, int flow_len, unsigned char refb)
 {
-    double x = abs(ref_len*100-flow_len)+MINI_PEN;
-    double y = length_factor(ref_len);
+    int diff = ref_len*100-flow_len;
+    double x = abs(diff)+MINI_PEN;
+    if (x > 200) x=200.0;
+    //double y = length_factor(ref_len);
 
     //if (x <= 60 && x >=40) {
 //	return 3.0;
   //  }
     if (x < 50) {
     	x = -log10(1.0- pow(x/64.5, 3.0))*10.0;
-    	y = y/ length_factor(1);
+	return  x*(1.0+(float) ref_len/10.0);
+    	//y = y/ length_factor(1);
     }
+    if (diff > 0) {
+	if (refb == 0 || refb == 3) x *=1.7;
+	else x *= 0.95;
+    } else x *= 1.7;
     /*    
     if (flow_len > 500) {
         return 5+x*y*.7;
     }
     */
 
-    return x*y;
+    return x*length_factor(ref_len);
 }
 
 double flow_poster_prob_calc::prob_match(unsigned char refb, int ref_len, unsigned char flow_base, int flow_sign)
 {
-    if (refb == flow_base) return prob_match(ref_len, flow_sign);
+    if (refb == flow_base) return prob_match(ref_len, flow_sign, refb);
     return prob_ins(refb, ref_len, flow_base, flow_sign)+prob_del(ref_len);
 }
 
@@ -258,16 +371,23 @@ double flow_poster_prob_calc::best_hyp(flow_list *alter_hyp, flow_list *read_lis
     }
     //xxx = -log10(xxx)*10.0;
     //printf("PPP=log odd p-value=%f %f %f %f %f\n", (float) (sbscore-bscore), (float) sbscore, (float) bscore, (float) xxx, (float) ex);
+    
+    int is_hotspot = 0;
+    if (alter_hyp->is_indel()) {
+ 	is_hotspot =  check_is_hotspot(line_out);
+    }
     if (best != 0) {
 	//printf("PPP=Refe="); alter_hyp->output_hyp(0); 
     	//printf("PPP=Call="); alter_hyp->output_hyp(best);
 	xxx = xxx*0.63;  // normalization
-	output_line(xxx, line_out);
+	output_line(xxx, line_out, is_hotspot);
     } else {
 	//printf("PPP1=Refe="); alter_hyp->output_hyp(0);
-	output_line(0.0, line_out);
+	output_line(0.0, line_out, is_hotspot);
+	xxx = 0.0;
 	//fprintf(outp, "Bayesian_Score=0\n");
     }
+    return xxx;
 }
 
 
@@ -372,6 +492,7 @@ static int set_hyp(char *line, flow_list *hy, const char *s)  // 2 hypothesis fi
     if (strlen(ref) == strlen(targ)) {
 	hy->add_list(f, fs, i, 0.005);
     } else {
+	hy->set_is_indel();
 	hy->add_list(f, fs, i, 0.001);
 	/*
 	if (strlen(ref) == 2 && strlen(targ) ==1) {  // for deletion, try alternative SNP cases.
@@ -384,8 +505,9 @@ static int set_hyp(char *line, flow_list *hy, const char *s)  // 2 hypothesis fi
 	}  
 	*/
     }
-    int b= count_of_flow(targ);
-    rv = b-1;
+    //int b= count_of_flow(targ);
+    //rv = b-1;
+    rv = i-(CONTEXT*2+1);
     return rv;
 }
 
@@ -568,7 +690,7 @@ static float vhscore(char *line)
     return x;
 }
 
-main(int argc, char *argv[])
+int rescorer_main(int argc, char **argv)
 {
     flow_poster_prob_calc aa;
     unsigned char ref[10]={0,1,2,1,0,3,1,2,1,0};
@@ -622,7 +744,7 @@ main(int argc, char *argv[])
     x = aa.calc_post_prob(8, f6,fm6);
     printf("example2 alter %f\n", (float) x);
     */
-    flow_list *hy = new flow_list(), *rs = new flow_list();
+    flow_list *hy = new flow_list(20), *rs = new flow_list();
     /*
     hy->add_list(ref4, flow4, 4, 1.0);
     hy->add_list(ref5, flow5, 5, 0.001);
@@ -657,13 +779,13 @@ main(int argc, char *argv[])
 	    if (argv[i][0] == '-') {
 		if (strcmp(argv[i]+1, "log") == 0) {
 		    logfile = ckopen(argv[i+1], "w");
-		} else if (strcmp(argv[i]+1, "debug")==0|| strcmp(argv[i]+1, "d")) {
+		} else if (strcmp(argv[i]+1, "debug")==0|| strcmp(argv[i]+1, "d")==0) {
 		    debug = atoi(argv[i+1]);
  		} else if (strcmp(argv[i]+1, "min_score")==0) {
 		    bscore_cut = atof(argv[i+1]);
                 } else if (strcmp(argv[i]+1, "neighbor")==0) {
 		    neighbor =  atoi(argv[i+1]);
-                } else if (strcmp(argv[i]+1, "hotspot_file")) {
+                } else if (strcmp(argv[i]+1, "hotspot_file") == 0) {
 		    hotfile = argv[i+1]; 
 		} else {
 		    fprintf(stderr, "wrong option %s\n", argv[i]);
@@ -685,6 +807,7 @@ main(int argc, char *argv[])
 	    }
 	}
     }
+    clearCurSeq(".");
     int diff, coverage;
     int need_check = 0;
     float vh;
@@ -701,13 +824,6 @@ main(int argc, char *argv[])
 	char sid[100];
 	sscanf(line, "%s", sid);
 	//fprintf(stderr, "seq %s\n", sid);
-	while (strcmp(sid, faseq.Label())!=0) {
-	   if (!fafile->Read(faseq)) {
-        	fatal("cannot open \n");
-    	    }
-	    //fprintf(stderr, "from reference %s\n", faseq.Label());
-	    s = faseq.Sequence();
-	}
 	if (need_check && (x = need_combine(last_line, line))) {
 	    if (x == 1) {
 		hy->reset();
@@ -723,6 +839,15 @@ main(int argc, char *argv[])
 		vh = vhscore(last_line);
 		aa.best_hyp(hy, rs, coverage, vh, last_line);
 	    }
+            while (strcmp(sid, faseq.Label())!=0) {
+                if (debug) {printf("INFO: before call clearCurSeq: %s %s\n", faseq.Label(), sid);}
+                clearCurSeq(faseq.Label());
+                if (!fafile->Read(faseq)) {
+                        fatal("cannot open \n");
+                }
+            //fprintf(stderr, "from reference %s\n", faseq.Label());
+                s = faseq.Sequence();
+            }
             hy->reset();
             rs->reset();
 	    strcpy(last_line, line);
@@ -749,4 +874,185 @@ main(int argc, char *argv[])
     }
 }
 
+static flow_list **hyplist, **readlist;
+static flow_poster_prob_calc **fcc;
+static int *diff_adj;
+static char **refseq;
+static int *var_coverage;
+static int *ref_cov;
+static int *used;
+static int numT = 0;
+static pthread_mutex_t mt;
+#define refseq_size 100000 
 
+void rescorer_init(int nthread)
+{
+    hyplist = new flow_list*[nthread]; 
+    readlist = new flow_list*[nthread];
+    refseq = new char*[nthread];
+    outp = NULL; // turn off output
+    fcc = new flow_poster_prob_calc*[nthread];
+    int i;
+    numT = nthread;
+    debug = 0;
+    for (i = 0; i < nthread; i++) {
+	hyplist[i] = new flow_list(20);
+	readlist[i] =  new flow_list(100000);
+	refseq[i] = new char[refseq_size];
+	fcc[i] = new flow_poster_prob_calc();
+    }
+    var_coverage = new int[nthread];
+    ref_cov = new int[nthread];
+    diff_adj = new int[nthread];
+    used = new int[nthread];
+    pthread_mutex_init(&mt, NULL);
+    memset( var_coverage, 0, sizeof(int)*nthread);
+    memset(ref_cov,  0, sizeof(int)*nthread);
+    memset(diff_adj,  0, sizeof(int)*nthread);
+    memset(used, 0, sizeof(int)*nthread);
+}
+
+double calScore(int pid)
+{
+    /*
+    char *start_of_read = parse_hyp(a, tline, s); // generate artificial line of prediction info in tline
+    int diff = set_hyp(tline, hyplist, s);
+    parse_reads(readlist, start_of_read, diff);
+    */
+    return fcc[pid]->best_hyp(hyplist[pid], readlist[pid], var_coverage[pid]+ref_cov[pid], 0, NULL);
+}
+
+void rescorer_end()
+{
+    int i;
+    if (numT == 0) return;
+    for (i = 0; i < numT; i++) {
+	delete hyplist[i];
+	delete readlist[i];
+	delete [] refseq[i];
+	delete fcc[i];
+    }
+    delete [] hyplist;
+    delete [] readlist;
+    delete [] fcc;
+    delete [] refseq;
+    delete [] var_coverage;
+    delete [] ref_cov;
+    delete [] diff_adj;
+    delete [] used;
+    numT = 0;
+}
+
+// These could be combined. . .
+int addRef(int numRefBases, char* refBases)
+{
+    if (numT == 0) fatal("use of api without init, or after it is released\n");
+    if (debug == 2) printf("addRef %d %s\n", numRefBases, refBases);
+    if (refseq_size < numRefBases) fatal("addRef::refseq too long\n");
+    pthread_mutex_lock(&mt); 
+    int i, pid;
+    for (i = 0; i < numT; i++) {
+	if (used[i] == 0) { pid = i; used[i] = 1; break;}
+    }
+    if (i == numT) fatal("used up all the thread\n");
+    pthread_mutex_unlock(&mt);
+    strncpy(refseq[pid], refBases, numRefBases);
+    var_coverage[pid] = ref_cov[pid] = 0;
+    hyplist[pid]->reset();
+    readlist[pid]->reset();
+    if (debug == 2) printf("addRef return %d\n", pid);
+    return pid;
+}
+
+// Called once for each different variant at a location
+void addVariant(int pid, int varLocInRef, char *predicted_variant, char *ref_allele)
+{
+    if (pid >= numT) fatal("addVariant Pid=%d >= number of threads %d\n", pid, numT);
+    char line[10000];
+    sprintf(line, "ii\t%d\tii\t%s\t%s", varLocInRef+1, ref_allele, predicted_variant); // change to 1 offset
+    hyplist[pid]->reset();
+    readlist[pid]->reset();
+    var_coverage[pid] =  0;
+    diff_adj[pid] = set_hyp(line, hyplist[pid], refseq[pid]);
+}
+
+void addVariant(int pid, int varLocInRef, char *p)
+{
+    if (debug == 2) printf("addVariant %d %d %s\n", pid, varLocInRef, p);
+    if (pid >= numT) fatal("addVariant Pid=%d >= number of threads %d\n", pid, numT);
+    char s1[100];
+    if (p[0] == '+' || (strlen(p) == 1 && p[0] != 'D')) {
+	s1[0] = refseq[pid][varLocInRef];
+	s1[1]= 0;
+	if (p[0] == '+') {
+	    p[0] = s1[0]; 
+	    if (debug) printf("Insertion:%s\t%s\t%c%c%c\n", s1, p, refseq[pid][varLocInRef+1], refseq[pid][varLocInRef+2], refseq[pid][varLocInRef+3]);
+	}
+    } else { // ##D
+	int x = atoi(p);
+	if (x == 0) x = 1;
+	strncpy(s1, refseq[pid]+varLocInRef, x+1);
+	s1[x+1] = 0;
+	p[0] = s1[0];
+	p[1] = 0; 
+	if (debug) printf("deletion:%s\t%s\n", s1, p);
+    }	
+    addVariant(pid, varLocInRef, p, s1);
+}
+// [note can restrict to just one call for now.]
+
+// Called numRead times per prediction
+void addRead(int pid, int varNum, int varFlowIndex, int numFlow, char *flowbase, int *fs, char *align, int isp)
+// varNum = 0 for reference, 1 for first variant in addVarint, 2, second var, etc. . .
+{
+    if (debug == 2) printf("addRead %d %d %d %s %s %d %d\n", pid, varFlowIndex, numFlow, flowbase, align, fs[0], fs[1]);
+    if (pid >= numT) fatal("addRead Pid=%d >= number of threads %d\n", pid, numT); 
+    if (varNum == 0){ ref_cov[pid]++;  return;}
+    var_coverage[pid]++;
+    int x = varFlowIndex; 
+    int y = x+1;
+    int c = CONTEXT+1+diff_adj[pid]/2; 
+    while (x >= 0 && c > 0) {
+        if (fs[x] > 60) c--;
+        x--;
+    }
+    x++;
+    c = CONTEXT+1+diff_adj[pid];
+    while (y < numFlow && c > 0) {
+        if (fs[y] > 60) c--;
+        y++;
+    }
+    if (debug) {
+        printf("%d %d %d", x, y, numFlow);
+	int i;
+        for (i = x; i < y; i++) printf("%c:%d ", flowbase[i], fs[i]);
+        printf("\n");
+    }
+//    unsigned char *a = (unsigned char *) flowbase;
+//    readlist->add_list(a+x, fs+x, y-x, 1.0);
+    unsigned char a[y-x];
+    int i, j =0, fin[y-x];
+    if (isp == 0) {
+	for (i = y-1; i>=x; i--) {
+	    if (align[i] == '-') continue;
+	    a[j] = 3-code(flowbase[i]);
+	    fin[j] = fs[i];
+	    j++;
+	}
+	readlist[pid]->add_list(a, fin, j, -1.0);	
+	return;
+    }
+    for (i = x, j= 0; i <y; i++) {
+	if (align[i] == '-') continue;
+	a[j] = code(flowbase[i]);
+	fin[j] = fs[i];
+	j++;
+    }
+    readlist[pid]->add_list(a, fin, j, 1.0);
+}
+ 
+void finished(int pid)
+{
+    if (pid >= numT) fatal("finished:: Pid=%d >= number of threads %d\n", pid, numT);
+ 	used[pid] = 0;
+}

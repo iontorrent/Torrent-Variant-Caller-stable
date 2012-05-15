@@ -6,7 +6,7 @@
 #define POSTERIOR_PROB_H_
 
 #define MAX_LEN 80
-#define NUM_H 900000
+#define NUM_HHH 500000
 #define MINI_PEN 0.6
 #define DEL_PENALTY 30.0
 #define CONTEXT 3
@@ -17,17 +17,29 @@
 class flow_list 
 {
     public:
-	flow_list() {reset();}
-	void reset() {num_h = 0;}
+	flow_list() {init(NUM_HHH);reset();}
+	flow_list(int n) {
+		init(n);
+		reset();
+	}
+	~flow_list() {
+	    delete [] seq[0];
+	    delete [] seq;
+	    delete [] flow[0];
+	    delete [] flow;
+	    delete [] prior;
+	    delete [] length;
+   	}
+	void reset() {num_h = 0; v_type = 0;}
 	void add_list(unsigned char *s, int *f, int len) {
-	    if (num_h >= NUM_H) {return; fprintf(stderr, "too many hyp\n"), exit(1);} //
+	    if (num_h >= NUM_H) {return; } //
 	    length[num_h] = len;
 	    int i;
 	    for (i = 0; i < len; i++) {seq[num_h][i] = s[i]; flow[num_h][i] = f[i];}
 	    num_h++;
 	}
 	void add_list(unsigned char *s, int *f, int len, double p) {
-	    if (num_h >= NUM_H) {return; fprintf(stderr, "too many hyp\n"), exit(1);}
+	    if (num_h >= NUM_H) {return; }
 	    prior[num_h] = p;
 	    add_list(s, f, len);
 	}
@@ -53,12 +65,30 @@ class flow_list
 	    }
 	    printf("\n");
 	}
+	void set_is_indel() { v_type = 1; }
+	int is_indel() { return (v_type==1);}
     protected:
+	void init(int n) {
+	    NUM_H = n;
+	    seq = new unsigned char*[NUM_H];
+	    seq[0] = new unsigned char[NUM_H*MAX_LEN];
+	    flow = new int*[NUM_H];
+	    flow[0] = new int[NUM_H*MAX_LEN];
+	    length = new int[NUM_H];
+	    prior = new double[NUM_H];
+	    int i;
+	    for (i = 1; i < NUM_H; i++) {
+		seq[i] = seq[i-1]+MAX_LEN;
+		flow[i] = flow[i-1]+MAX_LEN;
+	    }
+	}
 	int num_h;
-	unsigned char seq[NUM_H][MAX_LEN];
-	int flow[NUM_H][MAX_LEN];
-	int length[NUM_H];
-	double prior[NUM_H]; // or strand
+	int NUM_H;
+	int v_type;
+	unsigned char **seq;
+	int **flow;
+	int *length;
+	double *prior; // or strand
 };
 
 class flow_poster_prob_calc
@@ -94,14 +124,21 @@ class flow_poster_prob_calc
 	unsigned char *ref, ref_rev[1000];
 	int *ref_r, ref_r_rev[1000];
 	int rlen;
-	double prob_match(int ref_len, int flow_len);
+	double prob_match(int ref_len, int flow_len, unsigned char b);
 	double prob_match(unsigned char refb, int ref_len, unsigned char flow_base, int flow_sign);
 	double prob_ins(unsigned char refbase, int ref_len, unsigned char insbase, int flow_len);
 	double prob_del(int len);
 	double temp[MAX_LEN];
 	double split[4];
 	int c_sign[4];
-	double length_factor(int l) { return ((double) l)*0.005+0.055;}
+	double length_factor(int l) {
+	    if (l <= 5)
+		//return ((double) (l))*0.005+0.055;
+		//return 0.06;
+		return 0.07-0.006*(l-1); 
+	    if (l > 10) return 0.005;
+	    return 0.02;
+	}
 	/*double length_factor(int l) {
 	    double x = 0.075-((double) l)*0.005;
 	    if (l >=5) x-=0.2;
@@ -111,5 +148,16 @@ class flow_poster_prob_calc
 	*/
 	int do_split;
 };
+
+int rescorer_main(int argc, char **argv);
+void rescorer_init(int nt);
+double calScore(int pid);
+void rescorer_end();
+int addRef(int numRefBases, char* refBases);
+void addVariant(int pid, int varLocInRef, char *predicted_varaint, char *ref_allele);
+void addVariant(int pid, int vc, char *pr);
+void addRead(int pid, int varNum, int varFlowIndex, int numFlow, char *flowbase, int *fs, char *al, int ispos);
+void finished(int pid);
+
 
 #endif
