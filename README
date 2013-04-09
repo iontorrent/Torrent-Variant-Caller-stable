@@ -1,59 +1,9 @@
 
-Setting up C API component
-* May need to modify -I/-L paths in g++ command @ public/c/bayscore/Makefile
 
-To Build:
-ant
-(will build Bayesian Scorer C component as well).
+Torrent Variant Caller README
 
-Run example:
-java -Xmx8G -Djava.library.path=dist -jar dist/GenomeAnalysisTK.jar  -T UnifiedGenotyper -R $REF  -I $BAM -L $BED  --flow_debug_file /dev/null --flow_align_context_file /dev/null --downsample_to_coverage 2000 --genotype_likelihoods_model INDEL --num_threads 1 --annotation IndelType --annotation AlleleBalance --annotation BaseCounts --annotation ReadDepthAndAllelicFractionBySample --annotation AlleleBalanceBySample --annotation DepthPerAlleleBySample --annotation MappingQualityZeroBySample -o myResults.vcf
+*** LEGACY CODE ***
 
-Currently, num_threads must be 1 for consistent Bayesian Scorer results. Also both
-flow_debug_file and flow_align_context_file must be present.  Set these to /dev/null
-to avoid excessive disk usage.
+The Torrent Variant Caller code found here was legacy from Torrent Server release 2.2 (May 2012) and is no longer supported.
 
-How it is run inside Torrent Suite variant calling plugin:
-Standard GATK:
-def IndelCallerCommandLine( binDir, paramstr, bamfile, reference, bedfile, flowseq, outDir ):
-    # bedfile and flowseq not currently employed
-    if bedfile != "":
-        bedfile = '-L ' + bedfile
-    fixedprms = "java -Xmx8G -Djava.library.path=%s/TVC/lib -cp %s/TVC/jar/ -jar %s/TVC/jar/GenomeAnalysisTK.jar -T UnifiedGenotyper -R %s -I %s %s -o %s/%s --flow_debug_file %s --flow_align_context_file %s --bypassFlowAlign --ignoreFlowIntensities -S SILENT -U ALL -filterMBQ " % (
-        binDir, binDir, binDir, reference, bamfile, bedfile, outDir, "bayesian_scorer.vcf", "/dev/null", "/dev/null")
-    if paramstr == "":
-       paramstr = " -glm INDEL -nt 8 -minIndelCnt 10 -dcov 500 "
-    else:
-       paramstr = paramstr.replace('=',' ')
-    annotation = " -A IndelType -A AlleleBalance -A BaseCounts -A ReadDepthAndAllelicFractionBySample -A AlleleBalanceBySample -A DepthPerAlleleBySample -A MappingQualityZeroBySample "   
-    return "%s %s %s > %s/%s " % (fixedprms, annotation, paramstr, outDir, "indel_caller.log")
-
-GATK w/ flow alignment:
-(Taking in VCF made from standard GATK run)
-def IndelReCallerCommandLine( binDir, paramstr, bamfile, reference, flowseq, outDir ):
-    fixedprms = "java -Xmx8G -Djava.library.path=%s/TVC/lib -cp %s/TVC/jar/ -jar %s/TVC/jar/GenomeAnalysisTK.jar -T UnifiedGenotyper -R %s -I %s -L %s/%s -o %s/%s --flow_debug_file %s --flow_align_context_file %s -S SILENT -U ALL -filterMBQ " % (
-        binDir, binDir, binDir, reference, bamfile, outDir,"downsampled.vcf", outDir, "bayesian_scorer.vcf", "/dev/null", "/dev/null")
-    if paramstr == "":
-       paramstr = " -glm INDEL -nt 1 -minIndelCnt 10 -dcov 100000 "
-    else:
-       paramstr = paramstr.replace('=',' ')
-    annotation = " -A IndelType -A AlleleBalance -A BaseCounts -A ReadDepthAndAllelicFractionBySample -A AlleleBalanceBySample -A DepthPerAlleleBySample -A MappingQualityZeroBySample "   
-    return "%s %s %s > %s/%s; cat %s/filtered.non-downsampled.vcf >> %s/bayesian_scorer.vcf" % (fixedprms, annotation, paramstr, outDir, "indel_caller.log", outDir, outDir)
-
-Indel Assembly call:
-def IndelAssemblyCommandLine( binDir, paramstr, reference, bamfile, bedfile, outDir ):
-    if bedfile != "":
-       bedfile = '-L ' + bedfile
-    fixedprms = "java -Xmx8G -cp %s/TVC/jar/ -jar %s/TVC/jar/GenomeAnalysisTK.jar -T IndelAssembly --bypassFlowAlign -R %s -I %s %s -o %s/%s -S SILENT -U ALL -filterMBQ " % (
-        binDir, binDir, reference, bamfile, bedfile, outDir, "indel_assembly.vcf")    
-    if paramstr == "":
-       paramstr = " -nt 1 "
-    else:
-       paramstr = paramstr.replace('=',' ')
-    return "%s %s  > %s/%s" % (fixedprms, paramstr, outDir, "indel_assembly.log")
-
-Notes:
-paramstr is from values taken from the appropriate json file found @ variantCaller/paramFiles.
-On a TS, this is typically at
-/results/plugins/variantCaller/paramFiles.
-
+*** LEGACY CODE ***
